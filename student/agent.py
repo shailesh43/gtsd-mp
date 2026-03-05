@@ -8,6 +8,9 @@ from config import ADMIN_SERVER, CHECK_INTERVAL
 
 pc_name = socket.gethostname()
 
+last_mode = None
+site_opened = False
+
 
 def register():
 
@@ -23,6 +26,18 @@ def register():
         print("Server not reachable")
 
 
+def heartbeat():
+
+    try:
+        requests.post(
+            f"{ADMIN_SERVER}/heartbeat",
+            json={"pc_name": pc_name},
+            timeout=3
+        )
+    except:
+        pass
+
+
 def fetch_rules():
 
     try:
@@ -34,26 +49,17 @@ def fetch_rules():
 
 
 SAFE_PROCESSES = [
-    "system",
-    "idle",
-    "explorer.exe",
-    "winlogon.exe",
-    "csrss.exe",
-    "services.exe",
-    "lsass.exe",
-    "svchost.exe",
-    "dwm.exe",
-    "python.exe",
-    "cmd.exe",
-    "bash.exe",
-    "powershell.exe",
+    "system","idle","explorer.exe","winlogon.exe","csrss.exe",
+    "services.exe","lsass.exe","svchost.exe","dwm.exe",
+    "python.exe","cmd.exe","bash.exe","powershell.exe",
     "conhost.exe",
-    
-    # VS code insiders
-    "code - insiders.exe",
-    "node.exe",
-    "pylance"
+    "runtimebroker.exe",
+    "searchhost.exe",
+    "startmenuexperiencehost.exe",
+    "shellexperiencehost.exe",
+    "textinputhost.exe"
 ]
+
 
 def kill_unallowed(allowed):
 
@@ -62,6 +68,7 @@ def kill_unallowed(allowed):
     for proc in psutil.process_iter(["pid", "name"]):
 
         try:
+
             name = proc.info["name"]
 
             if not name:
@@ -73,24 +80,29 @@ def kill_unallowed(allowed):
                 continue
 
             if name not in allowed:
+                print(f"Killing unauthorized process: {name}")
                 proc.kill()
 
         except:
             pass
 
-def ensure_chrome():
 
-    chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-
-    running = False
+def kill_chrome():
 
     for proc in psutil.process_iter(["name"]):
 
-        if proc.info["name"] and proc.info["name"].lower() == "chrome.exe":
-            running = True
+        try:
+            if proc.info["name"] and proc.info["name"].lower() == "chrome.exe":
+                proc.kill()
+        except:
+            pass
 
-    if not running:
-        subprocess.Popen(chrome_path)
+
+def open_sites(sites):
+
+    chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+
+    subprocess.Popen([chrome_path] + sites)
 
 
 def normal_mode():
@@ -100,29 +112,56 @@ def normal_mode():
 
 def lab_mode(rules):
 
-    allowed_apps = rules["lab_allowed_apps"]
+    global site_opened
 
-    print("Lab mode active")
+    allowed_apps = rules["lab_allowed_apps"] + ["chrome.exe", "explorer.exe"]
 
     kill_unallowed(allowed_apps)
 
+    sites = rules["lab_allowed_websites"]
 
-def exam_mode():
+    if sites and not site_opened:
+
+        print("Opening allowed lab websites")
+
+        kill_chrome()
+
+        open_sites(sites)
+
+        site_opened = True
+
+
+def exam_mode(rules):
+
+    global site_opened
 
     allowed_apps = ["chrome.exe", "explorer.exe"]
 
-    print("Exam mode active")
-
     kill_unallowed(allowed_apps)
 
-    ensure_chrome()
+    sites = rules["exam_allowed_websites"]
+
+    if sites and not site_opened:
+
+        print("Opening exam website")
+
+        kill_chrome()
+
+        open_sites(sites)
+
+        site_opened = True
 
 
 def main():
 
+    global last_mode
+    global site_opened
+
     register()
 
     while True:
+
+        heartbeat()
 
         rules = fetch_rules()
 
@@ -132,6 +171,11 @@ def main():
 
         mode = rules["mode"]
 
+        if mode != last_mode:
+            print(f"\nMode changed → {mode}")
+            site_opened = False
+            last_mode = mode
+
         if mode == "normal":
             normal_mode()
 
@@ -139,7 +183,7 @@ def main():
             lab_mode(rules)
 
         elif mode == "exam":
-            exam_mode()
+            exam_mode(rules)
 
         time.sleep(CHECK_INTERVAL)
 
