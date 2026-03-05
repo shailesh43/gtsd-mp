@@ -1,0 +1,17 @@
+{
+    "mode": "exam",
+    "clients": {
+        "DESKTOP-OELNF3I": "online"
+    },
+    "lab_allowed_apps": [
+        "Code.exe",
+        "chrome.exe"
+    ],
+    "lab_allowed_websites": [
+        "https://www.w3schools.com/"
+    ],
+    "exam_allowed_apps": [
+        "chrome.exe"
+    ],
+    "exam_allowed_websites": []
+}
